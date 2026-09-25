@@ -3,9 +3,11 @@
 
 Scans already-checked-out source code against Lineaje AI security policies and
 optionally opens a remediation PR built from the LLM remediation ``fix_code`` patches
-the policy engine returns (guardrail stubs are not inserted). The remediation is also
-added to the Lineaje report as SECTION 4: LLM Remediation (step summary + PR body). Designed to run on a GitHub-managed runner where the repository
-is already checked out.
+the policy engine returns (guardrail stubs are not inserted); the PR commits the
+patched files. The step summary also prints the exact ``entities.aientity.json`` and
+``findings.aifinding.json`` the server uploaded to Lineaje — in hybrid mode those are
+the only scan artifacts that leave the MCP host. Designed to run on a GitHub-managed
+(or self-hosted) runner where the repository is already checked out.
 
 Self-contained: the only SCM code here is a minimal GitHub REST client
 (:class:`GitHubClient`, defined below) covering the branch/commit/PR calls the
@@ -77,7 +79,7 @@ logger = logging.getLogger("gha_repo_scan")
 # Constants
 # ===========================================================================
 
-MCP_SERVER_URL = "https://localhost/mcp"  # Put in your VM IP Address here
+MCP_SERVER_URL = "https://172.206.26.109/mcp"  # Put in your VM IP Address here
 
 
 def _mcp_http_client_with_extra_ca(headers=None, timeout=None, auth=None):
@@ -1338,6 +1340,9 @@ def _run_mcp_scan_via_client(
                 presigned_url = upload_result["presigned_url"]
                 resolved_sbom = (upload_result.get("sbom_id") or resolved_sbom or "").strip()
                 resolved_run_id = (upload_result.get("run_id") or resolved_run_id or "").strip()
+                # False when a hybrid server kept the source on its own host; missing
+                # (None) on servers older than that flag.
+                source_s3_uploaded = upload_result.get("source_archive_s3_uploaded")
 
 
         if presigned_url:
@@ -1375,6 +1380,9 @@ def _run_mcp_scan_via_client(
                     result["sbom_id"] = resolved_sbom
                 if resolved_run_id and not (result.get("run_id") or "").strip():
                     result["run_id"] = resolved_run_id
+                result["source_archive_s3_uploaded"] = (
+                    True if presigned_url else source_s3_uploaded
+                )
                 return result
 
     return asyncio.run(_scan())
@@ -1416,13 +1424,15 @@ def parallel_batch_scan(
     manifest_files: Optional[List[str]] = None,
 ) -> Tuple[
     List[Dict[str, Any]], List[Dict[str, Any]], List[str], List[Dict[str, str]],
-    int, List[str], List[Dict[str, Any]],
+    int, List[str], List[Dict[str, Any]], Dict[str, Any],
 ]:
     all_violations: List[Dict[str, Any]] = []
     all_remediation_actions: List[Dict[str, Any]] = []
     all_reports: List[str] = []
     all_aibom: List[Dict[str, str]] = []
     all_stub_insertions: List[Dict[str, Any]] = []
+    # What the server PUT to Lineaje S3, plus whether any batch's source archive went too.
+    uploaded: Dict[str, Any] = {"entities": [], "findings": [], "source_archive_s3_uploaded": None}
     aibom_seen: set = set()
     failed_batch_count = 0
     failure_details: List[str] = []
@@ -1493,6 +1503,12 @@ def parallel_batch_scan(
             all_stub_insertions.extend(batch_stub_insertions)
             if batch_report:
                 all_reports.append(batch_report)
+            uploaded["entities"].extend(mcp_result.get("uploaded_entities_json") or [])
+            uploaded["findings"].extend(mcp_result.get("uploaded_findings_json") or [])
+            src_flag = mcp_result.get("source_archive_s3_uploaded")
+            if src_flag is not None:
+                uploaded["source_archive_s3_uploaded"] = bool(
+                    uploaded["source_archive_s3_uploaded"]) or bool(src_flag)
             for entry in batch_aibom:
                 key = (entry.get("name", ""), entry.get("source_file", ""))
                 if key not in aibom_seen:
@@ -1516,7 +1532,7 @@ def parallel_batch_scan(
 
     return (
         all_violations, all_remediation_actions, all_reports, all_aibom,
-        failed_batch_count, failure_details, all_stub_insertions,
+        failed_batch_count, failure_details, all_stub_insertions, uploaded,
     )
 
 # ===========================================================================
@@ -1791,7 +1807,9 @@ def build_json_output(
     failed_remediation_files: Optional[List[str]] = None,
     scan_errors: Optional[List[str]] = None,
     remediation_actions: Optional[List[Dict[str, Any]]] = None,
-    remediation_section: str = "",
+    uploaded_entities: Optional[List[Dict[str, Any]]] = None,
+    uploaded_findings: Optional[List[Dict[str, Any]]] = None,
+    source_archive_s3_uploaded: Optional[bool] = None,
 ) -> Dict[str, Any]:
     return {
         "status": status,
@@ -1813,7 +1831,9 @@ def build_json_output(
         "remediation_pr_url": remediation_pr_url,
         "failed_remediation_files": failed_remediation_files or [],
         "remediation_actions": remediation_actions or [],
-        "remediation_section": remediation_section,
+        "uploaded_entities": uploaded_entities or [],
+        "uploaded_findings": uploaded_findings or [],
+        "source_archive_s3_uploaded": source_archive_s3_uploaded,
         "scan_errors": scan_errors or [],
     }
 
@@ -1855,6 +1875,7 @@ def print_human_output(output: Dict[str, Any]) -> None:
     if not violations:
         if status == "compliant":
             print("\nNo violations found.")
+        _print_uploaded_artifacts(output)
         return
 
     from collections import defaultdict
@@ -1874,10 +1895,43 @@ def print_human_output(output: Dict[str, Any]) -> None:
         numbered = "".join(f"{i}. {c}<br>" for i, c in enumerate(controls, 1))
         print(f"| `{file_}` | {numbered} |")
 
-    remediation_section = output.get("remediation_section") or ""
-    if remediation_section:
-        print()
-        print(remediation_section)
+    _print_uploaded_artifacts(output)
+
+
+# GitHub caps a step summary at 1 MiB; keep each JSON well under half of that.
+UPLOADED_JSON_SUMMARY_LIMIT = int(os.environ.get("UNIFAI_UPLOADED_JSON_SUMMARY_LIMIT", "400000"))
+
+
+def _print_uploaded_artifacts(output: Dict[str, Any]) -> None:
+    """Print the entities/findings JSON the server uploaded to Lineaje, verbatim."""
+    artifacts = [
+        ("entities.aientity.json", output.get("uploaded_entities") or []),
+        ("findings.aifinding.json", output.get("uploaded_findings") or []),
+    ]
+    if not any(items for _, items in artifacts):
+        return
+    print("\n### Uploaded to Lineaje\n")
+    src = output.get("source_archive_s3_uploaded")
+    if src is False:
+        print(
+            "*Only these scan results were uploaded. The source code stayed on the "
+            "MCP host (hybrid mode) and was not uploaded.*\n"
+        )
+    elif src:
+        print("*The source archive was also uploaded to Lineaje (SaaS mode, or "
+              "UNIFAI_FORCE_S3_ARCHIVE_UPLOAD=true).*\n")
+    for name, items in artifacts:
+        text = json.dumps(items, indent=2, default=str)
+        truncated = len(text) > UPLOADED_JSON_SUMMARY_LIMIT
+        if truncated:
+            text = text[:UPLOADED_JSON_SUMMARY_LIMIT].rstrip() + "\n… (truncated)"
+        # Full copy always goes to the job log (stderr), even when the summary truncates.
+        logger.info("Uploaded %s (%d item(s)):\n%s", name, len(items), json.dumps(items, indent=2, default=str))
+        print(f"<details><summary><code>{name}</code> — {len(items)} item(s)"
+              f"{' (truncated; full JSON in the job log)' if truncated else ''}</summary>\n")
+        print("```json")
+        print(text)
+        print("```\n</details>\n")
 
 
 # ===========================================================================
@@ -2044,67 +2098,6 @@ def _md_cell(text: Any, limit: int = 300) -> str:
     return t.replace("|", "\\|")
 
 
-def build_remediation_report_section(
-    remediation_actions: List[Dict[str, Any]],
-    validated_fixes: Dict[str, str],
-    failed_files: List[str],
-    *,
-    include_diffs: bool = True,
-    max_diff_chars: int = 1500,
-) -> str:
-    """Markdown ``SECTION 4: LLM Remediation`` — one row per LLM remediation action.
-
-    Status is ``Applied (in remediation PR)`` when the file's fix_code patched cleanly,
-    otherwise ``Manual fix required`` (no fix_code, or the snippet no longer matches).
-    """
-    actions = [a for a in (remediation_actions or []) if (a.get("file") or "").strip()]
-    if not actions:
-        return ""
-    applied_files = {_norm_rel_path(f) for f in validated_fixes}
-    lines: List[str] = [
-        "### SECTION 4: LLM Remediation",
-        "",
-        f"*{len(actions)} remediation action(s) generated by the LLM remediator — "
-        f"{len(applied_files)} file(s) patched in the remediation PR, "
-        f"{len(set(failed_files or []))} need a manual fix. No guardrail stubs are inserted.*",
-        "",
-        "| # | File | Policy / Control | Remediation | Status |",
-        "|---|------|------------------|-------------|--------|",
-    ]
-    for i, a in enumerate(actions, 1):
-        fp = (a.get("file") or "").strip()
-        status = "Applied (in remediation PR)" if _norm_rel_path(fp) in applied_files else "Manual fix required"
-        policy = a.get("control") or a.get("policy_name") or a.get("policy_id") or ""
-        lines.append(
-            f"| {i} | `{_md_cell(fp, 120)}` | {_md_cell(policy, 120)} | "
-            f"{_md_cell(a.get('instruction'))} | {status} |"
-        )
-    lines.append("")
-    if include_diffs:
-        diff_blocks: List[str] = []
-        for i, a in enumerate(actions, 1):
-            for fx in (a.get("fix_code") or []):
-                orig = (fx.get("original") or "").rstrip()
-                repl = (fx.get("replacement") or "").rstrip()
-                if not orig.strip():
-                    continue
-                body = "\n".join(
-                    [f"- {ln}" for ln in orig.splitlines()] + [f"+ {ln}" for ln in repl.splitlines()]
-                )
-                if len(body) > max_diff_chars:
-                    body = body[:max_diff_chars].rstrip() + "\n… (truncated)"
-                why = _md_cell(fx.get("explanation"), 200)
-                diff_blocks.append(
-                    f"**{i}. `{_md_cell(a.get('file'), 120)}`**" + (f" — {why}" if why else "")
-                    + "\n\n```diff\n" + body + "\n```\n"
-                )
-        if diff_blocks:
-            lines.append("#### Suggested changes (LLM fix_code)")
-            lines.append("")
-            lines.extend(diff_blocks)
-    return "\n".join(lines).rstrip() + "\n"
-
-
 def _pr_remediation_details(fix_table: List[Dict[str, str]], limit_chars: int) -> str:
     """Compact per-file remediation list for the PR body (policy + what was changed)."""
     if not fix_table:
@@ -2119,6 +2112,69 @@ def _pr_remediation_details(fix_table: List[Dict[str, str]], limit_chars: int) -
     if len(text) > limit_chars:
         text = text[:limit_chars].rsplit("\n", 1)[0] + "\n\n*… more rows in the scan report.*"
     return text
+
+
+
+_PR_REPORT_SECTIONS = (
+    "### SECTION 1: AIBOM Discovery",
+    "### SECTION 2: Policy Violations",
+    "### SECTION 3: Controls Enforced",
+)
+
+
+def _build_fix_pr_body(
+    branch: str,
+    sha_short: str,
+    committed: List[str],
+    failed_files: Optional[List[str]],
+    fix_table: List[Dict[str, str]],
+    report: str,
+    limit: int,
+    report_note: str = "",
+) -> str:
+    """Remediation PR description: SECTION 1 (AIBOM), SECTION 2 (Policy Violations),
+    SECTION 3 (Controls Enforced) from the scan report, then the remediation changes.
+
+    The remediation part is sized first so a long report is what gets truncated, never
+    the list of changed files.
+    """
+    head = "\n".join([
+        "## Lineaje AI Policy Scan",
+        "",
+        f"Scan of `{branch}` at `{sha_short}`. The remediation changes below are "
+        "LLM-suggested fixes for review — merge only what you accept.",
+    ])
+    failed = failed_files or []
+    remediation = "\n".join([
+        "## Remediation changes",
+        "",
+        f"### Files remediated ({len(committed)})",
+        "",
+        "\n".join(f"- `{f}`" for f in committed),
+        "",
+        f"### Files without fixes ({len(failed)})",
+        "",
+        "\n".join(f"- `{f}`" for f in failed) or "_None_",
+    ])
+    details = _pr_remediation_details(fix_table, limit // 3)
+    if details:
+        remediation += "\n\n" + details
+
+    sections = _split_report_sections(report or "")
+    blocks = [f"{h}\n{sections[h].strip()}" for h in _PR_REPORT_SECTIONS if sections.get(h, "").strip()]
+    report_md = "\n\n".join(blocks) if blocks else (report or "").strip()
+
+    sep = "\n\n---\n\n"
+    note = f"\n\n{report_note}" if report_note else ""
+    budget = limit - len(head) - len(remediation) - 2 * len(sep) - len(note)
+    parts = [head]
+    if report_md and budget > 500:
+        if len(report_md) > budget:
+            cut = "\n\n*… report truncated — full report in the workflow run summary.*"
+            report_md = report_md[: budget - len(cut)].rsplit("\n", 1)[0] + cut
+        parts.append(report_md + note)
+    parts.append(remediation)
+    return sep.join(parts)[:limit]
 
 
 # ===========================================================================
@@ -2277,7 +2333,7 @@ def _create_github_fix_pr(
         except Exception:
             pass
         policies = ", ".join({r["policy"] for r in fix_table if r.get("file") == filepath}) or "policy violations"
-        message = f"fix({filepath}): remediate {policies} [unifai-ado-scan]"
+        message = f"fix({filepath}): remediate {policies} [unifai-ghp-scan]"
         try:
             scm.commit_file(repo, remediation_branch, filepath, content.encode("utf-8"), message, sha=blob_sha)
             committed.append(filepath)
@@ -2290,31 +2346,9 @@ def _create_github_fix_pr(
         return None, remediation_branch
 
     title = f"[unifai-bot] fix: AI policy remediation for {branch}@{sha_short}"
-    files_list = "\n".join(f"- `{f}`" for f in committed)
-    failed_list = ("\n".join(f"- `{f}`" for f in (failed_files or []))) or "_None_"
-    pr_body = "\n".join([
-        "## UniFAI AI Policy Remediation",
-        "",
-        f"Automated fixes for policy violations detected in `{branch}` at `{sha_short}`.",
-        "",
-        f"### Files remediated ({len(committed)})",
-        "",
-        files_list,
-        "",
-        f"### Files without fixes ({len(failed_files or [])})",
-        "",
-        failed_list,
-    ])
-    details = _pr_remediation_details(fix_table, GITHUB_PR_BODY_SAFE_LIMIT // 3)
-    if details:
-        pr_body += "\n\n" + details
-    if report:
-        heading = "\n\n---\n\n### Scan report\n\n"
-        budget = GITHUB_PR_BODY_SAFE_LIMIT - len(pr_body) - len(heading)
-        report_text = report.strip()
-        if budget > 500:
-            pr_body += heading + (report_text[:budget].rstrip() if len(report_text) > budget else report_text)
-    pr_body = pr_body[:GITHUB_PR_BODY_SAFE_LIMIT]
+    pr_body = _build_fix_pr_body(
+        branch, sha_short, committed, failed_files, fix_table, report, GITHUB_PR_BODY_SAFE_LIMIT,
+    )
 
     try:
         pr_number = scm.create_pull_request(repo, title, remediation_branch, branch, pr_body)
@@ -2393,33 +2427,10 @@ def _create_fix_pr(
 
     title = f"[unifai-bot] fix: AI policy remediation for {branch}@{sha_short}"
 
-    files_list = "\n".join(f"- `{f}`" for f in committed)
-    failed_list = ("\n".join(f"- `{f}`" for f in (failed_files or []))) or "_None_"
-    pr_body = "\n".join([
-        "## UniFAI AI Policy Remediation",
-        "",
-        f"Automated fixes for policy violations detected in `{branch}` at `{sha_short}`.",
-        "",
-        f"### Files remediated ({len(committed)})",
-        "",
-        files_list,
-        "",
-        f"### Files without fixes ({len(failed_files or [])})",
-        "",
-        failed_list,
-    ])
-    details = _pr_remediation_details(fix_table, AZURE_PR_DESCRIPTION_LIMIT // 2)
-    if details:
-        pr_body += "\n\n" + details
-    if report:
-        heading = "\n\n---\n\n### Scan report\n\n"
-        tail = "\n\n---\n\n*Full scan report: see the `unifai-report` artifact on the pipeline run.*"
-        budget = AZURE_PR_DESCRIPTION_LIMIT - len(pr_body) - len(heading) - len(tail)
-        report_text = report.strip()
-        if budget > 500:
-            pr_body += heading + (report_text[:budget].rstrip() if len(report_text) > budget else report_text)
-        pr_body += tail
-    pr_body = pr_body[:AZURE_PR_DESCRIPTION_LIMIT]
+    pr_body = _build_fix_pr_body(
+        branch, sha_short, committed, failed_files, fix_table, report, AZURE_PR_DESCRIPTION_LIMIT,
+        report_note="*Full scan report: see the `unifai-report` artifact on the pipeline run.*",
+    )
 
     try:
         pr_id = scm.create_pull_request(title, remediation_branch, branch, pr_body)
@@ -2527,7 +2538,7 @@ def _execute_scan(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(prefix="ado-repo-scan-") as temp_dir:
         (
             all_violations, all_remediation_actions, all_reports, all_aibom,
-            failed_batches_count, failure_details, all_stub_insertions,
+            failed_batches_count, failure_details, all_stub_insertions, uploaded,
         ) = parallel_batch_scan(
             batches=batches,
             source_dir=source_path,
@@ -2593,11 +2604,6 @@ def _execute_scan(args: argparse.Namespace) -> int:
             "STEP 3: %d file(s) patched, %d file(s) need a manual fix",
             len(validated_fixes), len(failed_rem_files),
         )
-    remediation_section = build_remediation_report_section(
-        all_remediation_actions, validated_fixes, failed_rem_files,
-    )
-    if remediation_section:
-        combined_report = (combined_report.rstrip() + "\n\n---\n\n" + remediation_section) if combined_report else remediation_section
 
     # GitHub token takes precedence over Azure DevOps config.
     github_token = _normalize_token(
@@ -2675,7 +2681,9 @@ def _execute_scan(args: argparse.Namespace) -> int:
         failed_remediation_files=failed_rem_files,
         scan_errors=failure_details,
         remediation_actions=all_remediation_actions,
-        remediation_section=remediation_section,
+        uploaded_entities=uploaded["entities"],
+        uploaded_findings=uploaded["findings"],
+        source_archive_s3_uploaded=uploaded["source_archive_s3_uploaded"],
     )
     print_human_output(output)
     return 0
