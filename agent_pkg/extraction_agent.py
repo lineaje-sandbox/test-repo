@@ -13,9 +13,11 @@ endpoint serving Gemini 3.x for this project.
 
 from __future__ import annotations
 
+import os
+
 from google.adk.agents import LlmAgent
 
-from .model_router import model_card, model_for_agent, tier_for_agent
+from .model_router import model_card, tier_for_agent
 from .schemas import AgentProfile, ExtractedOrder
 
 AGENT_KEY = "extraction"
@@ -50,7 +52,14 @@ usually follows it in brackets.
 Return only the structured order.
 """
 
-MODEL = model_for_agent(AGENT_KEY)
+APPROVED_MODELS = frozenset(
+    model.strip()
+    for model in os.environ["APPROVED_LLM_MODELS"].split(",")
+    if model.strip()
+)
+MODEL = os.environ["EXTRACTION_MODEL"].strip()
+if not MODEL or MODEL not in APPROVED_MODELS:
+    raise RuntimeError("EXTRACTION_MODEL must name an organization-approved LLM")
 
 
 def profile(endpoint_location: str = "global") -> AgentProfile:
