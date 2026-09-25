@@ -77,7 +77,7 @@ logger = logging.getLogger("gha_repo_scan")
 # Constants
 # ===========================================================================
 
-MCP_SERVER_URL = "https://172.206.26.109/mcp"  # Put in your VM IP Address here
+MCP_SERVER_URL = "https://localhost/mcp"  # Put in your VM IP Address here
 
 
 def _mcp_http_client_with_extra_ca(headers=None, timeout=None, auth=None):
