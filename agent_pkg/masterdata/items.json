@@ -1,0 +1,136 @@
+{
+  "_comment": "Stand-in for the SharePoint Item List that maps a buyer's supplier item number to the internal Minos ID. The first two entries are taken verbatim from the sample purchase order, including the list prices, so the happy path reconciles against a real document.",
+  "_source": "SharePoint / Bot_Input / Item List.xlsx (simulated)",
+  "items": [
+    {
+      "supplier_item_no": "3579009420",
+      "minos_id": "1311655",
+      "product_name": "RC CCN Coat Care 85g",
+      "pack": "12 x 85 g pouch",
+      "classification": "PSR",
+      "list_price_pln": 3.55,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "313270",
+      "minos_id": "1003120012",
+      "product_name": "RC Intense Hairball 2kg",
+      "pack": "1 x 2 kg bag",
+      "classification": "PSR",
+      "list_price_pln": 91.48,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "3579009433",
+      "minos_id": "1311662",
+      "product_name": "RC CCN Digestive Care 85g",
+      "pack": "12 x 85 g pouch",
+      "classification": "PSR",
+      "list_price_pln": 3.72,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "3579009447",
+      "minos_id": "1311670",
+      "product_name": "RC CCN Sterilised 85g",
+      "pack": "12 x 85 g pouch",
+      "classification": "PSR",
+      "list_price_pln": 3.61,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "313271",
+      "minos_id": "1003120019",
+      "product_name": "RC Intense Hairball 4kg",
+      "pack": "1 x 4 kg bag",
+      "classification": "PSR",
+      "list_price_pln": 168.9,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "313288",
+      "minos_id": "1003120044",
+      "product_name": "RC Indoor Appetite Control 2kg",
+      "pack": "1 x 2 kg bag",
+      "classification": "PSR",
+      "list_price_pln": 96.2,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "4102770",
+      "minos_id": "2200450031",
+      "product_name": "RC Veterinary Renal RF23 2kg",
+      "pack": "1 x 2 kg bag",
+      "classification": "VET",
+      "list_price_pln": 142.75,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "4102784",
+      "minos_id": "2200450048",
+      "product_name": "RC Veterinary Gastrointestinal 2kg",
+      "pack": "1 x 2 kg bag",
+      "classification": "VET",
+      "list_price_pln": 138.4,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "4102791",
+      "minos_id": "2200450055",
+      "product_name": "RC Veterinary Urinary S/O 400g",
+      "pack": "1 x 400 g bag",
+      "classification": "VET",
+      "list_price_pln": 41.9,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "3579010115",
+      "minos_id": "1311703",
+      "product_name": "RC Kitten Instinctive 85g",
+      "pack": "12 x 85 g pouch",
+      "classification": "PSR",
+      "list_price_pln": 3.48,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "313305",
+      "minos_id": "1003120078",
+      "product_name": "RC Maxi Adult 4kg",
+      "pack": "1 x 4 kg bag",
+      "classification": "PSR",
+      "list_price_pln": 154.3,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "313312",
+      "minos_id": "1003120085",
+      "product_name": "RC Mini Adult 2kg",
+      "pack": "1 x 2 kg bag",
+      "classification": "PSR",
+      "list_price_pln": 88.6,
+      "uom": "ST",
+      "active": true
+    },
+    {
+      "supplier_item_no": "3579009466",
+      "minos_id": "1311688",
+      "product_name": "RC CCN Hair & Skin Care 85g (delisted)",
+      "pack": "12 x 85 g pouch",
+      "classification": "PSR",
+      "list_price_pln": 3.55,
+      "uom": "ST",
+      "active": false
+    }
+  ]
+}

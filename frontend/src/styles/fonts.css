@@ -1,0 +1,11 @@
+/*
+ * MarsCentra is Mars' licensed corporate typeface and is not redistributable,
+ * so it is not shipped here. It stays first in the font stack (see tokens.css)
+ * so that dropping the woff2 files into public/fonts/ and adding @font-face
+ * rules below is all that is needed to render in the real brand face.
+ *
+ * Deliberately no @font-face rules for it right now: a rule pointing at a file
+ * that is absent makes the browser request it on every page load and log a 404.
+ * The stack falls through to Figtree, which is self-hosted in
+ * public/fonts/webfonts.css and loaded from index.html.
+ */

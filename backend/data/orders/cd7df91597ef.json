@@ -1,0 +1,21 @@
+{
+  "order_id": "cd7df91597ef",
+  "filename": "order-4604568592-unmapped-item.pdf",
+  "received_at": "2026-09-21T05:02:50.993+00:00",
+  "status": "FAILED",
+  "source": "SAMPLE",
+  "pdf_bytes": 66418,
+  "extracted": null,
+  "validation": null,
+  "steps": [],
+  "resolutions": [],
+  "timings": {
+    "extraction_ms": null,
+    "validation_ms": null,
+    "total_ms": null
+  },
+  "error": "Run interrupted: the service restarted while this order was extracting. Upload the document again.",
+  "approved_payload": null,
+  "approved_path": null,
+  "approved_at": null
+}

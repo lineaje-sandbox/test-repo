@@ -1,0 +1,27 @@
+# The Dockerfile runs `npm ci` inside the image and then copies `frontend/`
+# over the top. Without these exclusions the host's darwin-native node_modules
+# would replace the linux install and `npm run build` would fail on esbuild's
+# platform check.
+frontend/node_modules
+frontend/dist
+frontend/dist-mock
+
+**/__pycache__
+**/*.pyc
+backend/.venv
+venv
+
+# Local run state: uploaded PDFs, order JSON and released payloads. The image
+# never copies these (the Dockerfile takes only backend/*.py), but leaving them
+# out keeps local demo data from being uploaded to Cloud Build at all.
+backend/data
+backend/outbox
+# A symlink to frontend/dist for local runs; the image builds its own copy.
+backend/frontend_dist
+
+# Probe agent used once to establish Agent Engine behaviour.
+probe
+
+.git
+.gitignore
+**/.DS_Store

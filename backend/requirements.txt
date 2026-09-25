@@ -1,0 +1,18 @@
+# Cloud Run runtime dependencies.
+#
+# Note what is absent: google-cloud-aiplatform. The backend talks to the deployed
+# agents over plain REST (`:streamQuery?alt=sse`), because the SDK's REST stream
+# parser expects a JSON array while the reasoning engine emits newline-delimited
+# JSON. Only deploy_agents.py needs the SDK, so it stays out of the image.
+#
+# google-adk is here because agent_pkg defines the agents with it, and the UI
+# reports the ADK version it was built against.
+google-adk==2.9.2
+google-genai>=2.24.0,<3
+google-auth>=2.34
+google-cloud-storage>=2.18
+requests>=2.32
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.12
+pydantic>=2.9

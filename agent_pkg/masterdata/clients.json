@@ -1,0 +1,105 @@
+{
+  "_comment": "Stand-in for the SharePoint Client List. Markt 3729 is taken verbatim from the sample purchase order; the rest are plausible neighbours so that store-number matching has something to be wrong about.",
+  "_source": "SharePoint / Bot_Input / Client List.xlsx (simulated)",
+  "clients": [
+    {
+      "markt": "3729",
+      "name": "Maxi Care Kalisz",
+      "legal_entity": "Alpha Pet Retailers Sp. z o.o.",
+      "channel": "PSR",
+      "city": "Kalisz",
+      "country": "PL",
+      "vat_id": "PL7010158031",
+      "eori": "PL701015803100000",
+      "active": true
+    },
+    {
+      "markt": "3728",
+      "name": "Maxi Care Konin",
+      "legal_entity": "Alpha Pet Retailers Sp. z o.o.",
+      "channel": "PSR",
+      "city": "Konin",
+      "country": "PL",
+      "vat_id": "PL7010158031",
+      "eori": "PL701015803100000",
+      "active": true
+    },
+    {
+      "markt": "3730",
+      "name": "Maxi Care Poznan Centrum",
+      "legal_entity": "Alpha Pet Retailers Sp. z o.o.",
+      "channel": "PSR",
+      "city": "Poznan",
+      "country": "PL",
+      "vat_id": "PL7010158031",
+      "eori": "PL701015803100000",
+      "active": true
+    },
+    {
+      "markt": "3741",
+      "name": "Maxi Care Wroclaw Krzyki",
+      "legal_entity": "Alpha Pet Retailers Sp. z o.o.",
+      "channel": "PSR",
+      "city": "Wroclaw",
+      "country": "PL",
+      "vat_id": "PL7010158031",
+      "eori": "PL701015803100000",
+      "active": true
+    },
+    {
+      "markt": "3902",
+      "name": "VetPartners Warszawa Mokotow",
+      "legal_entity": "VetPartners Polska Sp. z o.o.",
+      "channel": "VET",
+      "city": "Warszawa",
+      "country": "PL",
+      "vat_id": "PL5252488101",
+      "eori": "PL525248810100000",
+      "active": true
+    },
+    {
+      "markt": "3903",
+      "name": "VetPartners Gdansk Oliwa",
+      "legal_entity": "VetPartners Polska Sp. z o.o.",
+      "channel": "VET",
+      "city": "Gdansk",
+      "country": "PL",
+      "vat_id": "PL5252488101",
+      "eori": "PL525248810100000",
+      "active": true
+    },
+    {
+      "markt": "4110",
+      "name": "ZooDirect Online DC Lodz",
+      "legal_entity": "ZooDirect EU B.V.",
+      "channel": "ONLINE",
+      "city": "Lodz",
+      "country": "PL",
+      "vat_id": "PL7252291648",
+      "eori": "PL725229164800000",
+      "active": true
+    },
+    {
+      "markt": "4111",
+      "name": "ZooDirect Online DC Praha",
+      "legal_entity": "ZooDirect EU B.V.",
+      "channel": "ONLINE",
+      "city": "Praha",
+      "country": "CZ",
+      "vat_id": "CZ27082440",
+      "eori": "CZ2708244000000",
+      "active": true
+    },
+    {
+      "markt": "3655",
+      "name": "Maxi Care Szczecin (closed 2025)",
+      "legal_entity": "Alpha Pet Retailers Sp. z o.o.",
+      "channel": "PSR",
+      "city": "Szczecin",
+      "country": "PL",
+      "vat_id": "PL7010158031",
+      "eori": "PL701015803100000",
+      "active": false
+    }
+  ]
+}
