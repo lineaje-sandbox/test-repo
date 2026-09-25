@@ -51,6 +51,17 @@ Return only the structured order.
 """
 
 MODEL = model_for_agent(AGENT_KEY)
+MODEL_CARD = model_card(MODEL)
+_registry_status = (
+    MODEL_CARD.get("registry_status")
+    if isinstance(MODEL_CARD, dict)
+    else getattr(MODEL_CARD, "registry_status", None)
+)
+if _registry_status not in {"APPROVED", "IN_REGISTRY"}:
+    raise RuntimeError(
+        f"Refusing to initialize {AGENT_KEY!r} with unapproved model {MODEL!r}: "
+        f"registry status is {_registry_status or 'UNKNOWN'}"
+    )
 
 
 def profile(endpoint_location: str = "global") -> AgentProfile:
@@ -59,7 +70,7 @@ def profile(endpoint_location: str = "global") -> AgentProfile:
         label=AGENT_LABEL,
         role=AGENT_ROLE,
         model=MODEL,
-        model_card=model_card(MODEL),
+        model_card=MODEL_CARD,
         model_tier=tier_for_agent(AGENT_KEY),
         endpoint_location=endpoint_location,
         tools=[],
