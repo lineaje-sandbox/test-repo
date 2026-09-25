@@ -9,7 +9,7 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: write 
   pull-requests: write
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
       - name: Run Lineaje AI policy scan
         env:
           LINEAJE_PAT_TOKEN: ${{ secrets.LINEAJE_PAT_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           MCP_TLS_INSECURE_SKIP_VERIFY: "1"
         run: |
           python /tmp/scm_unifai_scan_hybrid.py \
