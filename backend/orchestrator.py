@@ -27,6 +27,8 @@ import logging
 import time
 from typing import Any, Optional
 
+from lineaje import enforce
+
 from agent_pkg import extraction_agent, validation_agent
 from agent_pkg.schemas import (
     ExceptionKind,
@@ -87,7 +89,7 @@ def _agent2_prompt(extracted: ExtractedOrder) -> str:
     return (
         "Validate this extracted purchase order against master data. Use your tools for "
         "every lookup and for the arithmetic.\n\n"
-        + json.dumps(extracted.model_dump(), indent=2, ensure_ascii=False)
+        + enforce(json.dumps(extracted.model_dump(), indent=2, ensure_ascii=False))
     )
 
 
@@ -307,7 +309,7 @@ def revalidate(
 ) -> ValidationResult:
     """Re-run the deterministic checks after a human correction.
 
-    No agent call: a human has supplied the missing fact, so re-asking Gemini
+    No agent call: a human has supplied the missing fact, so re-asking the agent
     would add latency and a chance of contradicting them. Prose from the original
     run is preserved for any exception that is still open.
     """
