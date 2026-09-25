@@ -27,6 +27,8 @@ import logging
 import time
 from typing import Any, Optional
 
+from lineaje import guardrails
+
 from agent_pkg import extraction_agent, validation_agent
 from agent_pkg.schemas import (
     ExceptionKind,
@@ -84,10 +86,12 @@ def _extracted_summary(extracted: ExtractedOrder) -> str:
 
 def _agent2_prompt(extracted: ExtractedOrder) -> str:
     """Agent 2 sees the extracted order as JSON and nothing else."""
+    extracted_json = json.dumps(extracted.model_dump(), indent=2, ensure_ascii=False)
+    safe_extracted_json = guardrails.prompt_injection.enforce(extracted_json)
     return (
         "Validate this extracted purchase order against master data. Use your tools for "
         "every lookup and for the arithmetic.\n\n"
-        + json.dumps(extracted.model_dump(), indent=2, ensure_ascii=False)
+        + safe_extracted_json
     )
 
 
@@ -142,7 +146,8 @@ async def _run_remote_agent(
     )
 
     def consume() -> None:
-        for event in remote.stream_agent(agent_key, message):
+        safe_message = guardrails.prompt_injection.enforce(message)
+        for event in remote.stream_agent(agent_key, safe_message):
             for _, kwargs in translator.translate(event):
                 recorder.add(agent=agent_key, agent_label=agent_label, **kwargs)
 
@@ -307,7 +312,7 @@ def revalidate(
 ) -> ValidationResult:
     """Re-run the deterministic checks after a human correction.
 
-    No agent call: a human has supplied the missing fact, so re-asking Gemini
+    No agent call: a human has supplied the missing fact, so re-asking a model
     would add latency and a chance of contradicting them. Prose from the original
     run is preserved for any exception that is still open.
     """
