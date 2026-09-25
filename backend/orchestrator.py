@@ -1,6 +1,6 @@
 """Runs one order through the two deployed agents and reconciles the result.
 
-The agents live on Vertex AI Agent Engine; this module is the Cloud Run side that
+The agents live on organization-approved remote deployments; this is the Cloud Run side that
 drives them. The order of truth is unchanged by them being remote:
 
     agent 1 transcribes  ->  agent 2 investigates and writes prose
@@ -24,6 +24,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+
+from lineaje import guardrail
 import time
 from typing import Any, Optional
 
@@ -84,10 +86,13 @@ def _extracted_summary(extracted: ExtractedOrder) -> str:
 
 def _agent2_prompt(extracted: ExtractedOrder) -> str:
     """Agent 2 sees the extracted order as JSON and nothing else."""
+    guarded_document = guardrail.enforce(
+        json.dumps(extracted.model_dump(), indent=2, ensure_ascii=False)
+    )
     return (
         "Validate this extracted purchase order against master data. Use your tools for "
         "every lookup and for the arithmetic.\n\n"
-        + json.dumps(extracted.model_dump(), indent=2, ensure_ascii=False)
+        + guarded_document
     )
 
 
@@ -141,8 +146,10 @@ async def _run_remote_agent(
         agent=agent_key, agent_label=agent_label, model=model, model_card=model_card
     )
 
+    guarded_message = guardrail.enforce(message)
+
     def consume() -> None:
-        for event in remote.stream_agent(agent_key, message):
+        for event in remote.stream_agent(agent_key, guarded_message):
             for _, kwargs in translator.translate(event):
                 recorder.add(agent=agent_key, agent_label=agent_label, **kwargs)
 
