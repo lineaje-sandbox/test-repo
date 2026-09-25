@@ -14,12 +14,28 @@ overridden by the Python authority pass in `reconcile.py`.
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any, Optional
 
 from google.adk.agents import LlmAgent
 
-from .model_router import model_card, model_for_agent, tier_for_agent
+from .model_router import model_card, model_for_agent as _model_for_agent, tier_for_agent
+
+
+def model_for_agent(agent_key: str) -> str:
+    """Return a routed model only when it is explicitly organization-approved."""
+    model = os.environ.get("VALIDATION_AGENT_MODEL") or _model_for_agent(agent_key)
+    approved_models = {
+        entry.strip()
+        for entry in os.environ.get("ORG_APPROVED_LLM_MODELS", "").split(",")
+        if entry.strip()
+    }
+    if model not in approved_models:
+        raise RuntimeError(
+            f"Model {model!r} is not in the organization-approved LLM list"
+        )
+    return model
 from .schemas import AgentProfile
 from .tools import AGENT2_TOOLS, TOOL_NAMES
 
