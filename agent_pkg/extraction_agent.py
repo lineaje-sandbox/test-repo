@@ -58,7 +58,7 @@ def profile(endpoint_location: str = "global") -> AgentProfile:
         key=AGENT_KEY,
         label=AGENT_LABEL,
         role=AGENT_ROLE,
-        model=MODEL,
+        # Use the runtime's centrally configured approved model.
         model_card=model_card(MODEL),
         model_tier=tier_for_agent(AGENT_KEY),
         endpoint_location=endpoint_location,

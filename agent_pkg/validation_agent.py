@@ -75,7 +75,8 @@ with what you have.
 """
 
 
-MODEL = model_for_agent(AGENT_KEY)
+APPROVED_MODEL_ID = "gpt-4o-mini"
+MODEL = APPROVED_MODEL_ID
 
 
 def profile(endpoint_location: str = "global") -> AgentProfile:
