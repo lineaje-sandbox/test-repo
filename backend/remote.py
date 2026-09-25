@@ -15,7 +15,7 @@ Now that they run remotely, the steps are derived from what the engine actually
 streamed back, which is a more honest account of the remote work. The event shape
 below was read off a real deployed engine, not assumed:
 
-    {"model_version": "gemini-3.8-flash",
+    {"model_version": "<approved-model>",
      "author": "extraction",
      "content": {"role": "model", "parts": [
         {"function_call": {"id": ..., "name": ..., "args": {...}}},
@@ -414,7 +414,9 @@ def make_message(text: str, *, pdf_uri: Optional[str] = None) -> dict[str, Any]:
     parts: list[dict[str, Any]] = []
     if pdf_uri:
         parts.append(
-            {"file_data": {"file_uri": pdf_uri, "mime_type": "application/pdf"}}
+            enforce(
+                {"file_data": {"file_uri": pdf_uri, "mime_type": "application/pdf"}}
+            )
         )
-    parts.append({"text": text})
+    parts.append(enforce({"text": text}))
     return {"role": "user", "parts": parts}
